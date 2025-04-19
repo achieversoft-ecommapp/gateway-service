@@ -1,34 +1,86 @@
+server:
+  port: 8080
+  servlet:
+    contextPath: /gatewayservice
+
+#eureka:
+#  client:
+#    serviceUrl:
+#      defaultZone: http://localhost:8761/eureka/
+#  instance:
+#    hostname: localhost
+#    statusPageUrlPath: /actuator
+
+authentication:
+  enabled: false
+
+management:
+  tracing:
+    brave:
+      span-joining-supported: true
+    sampling:
+      probability: 1.0
+    propagation:
+      type: B3
+
 spring:
   application:
-    name: api-gateway
+    name: gateway-service
+#  zipkin:
+#    base-url: ${SPRING_ZIPKIN_BASE_URL:http://localhost:9411/}
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://localhost:8888}
+  main:
+    web-application-type: REACTIVE
   cloud:
     gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_UNIQUE
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowed-origins: "${CLIENT_HOST:http://localhost:4200}"
+            allowed-headers: "*"
+            exposed-headers: "*"
+            allow-credentials: true
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
       routes:
-        - id: order
-          predicates:
-            - Path=/ordersoe/
-          uri: localhost:8081
-        - id: customer
-          predicates:
-            - Path=/customerdata/
-          uri: localhost:8082
-#        - id: internal
-#          predicates:
-#            - Path=/process/
-#          uri: localhost:8080
-#        - id : auth-server
-#          predicates:
-#            - Path=/login/
-#          uri: localhost:8088
+      - id: user-data-service
+        uri: lb://user-data-service
+        predicates:
+          - Path=/userdata/**
+      - id: user-service
+        uri: lb://user-service
+        predicates:
+          - Path=/userservice/**
+
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      proxyService:
+        register-health-indicator: true
+        event-consumer-buffer-size: 10
+        automatic-transition-from-open-to-half-open-enabled: true
+        failure-rate-threshold: 50
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        sliding-window-size: 10
+        wait-duration-in-open-state: 5s
+        sliding-window-type: COUNT_BASED
+
 
 
 #  main:
 #    web-application-type: reactive
 
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
 
 #logging:
 #  level:
@@ -39,8 +91,5 @@ eureka:
 #jwt:
 #  secret: VHKJMNnbfhbsjkdbVJHVkhbJBKJBsmfnbngygiyguFYVHJbkjnjnsjdnlkfn
 
-#server:
-#  port: 8080
 
-authentication:
-  enabled: false
+
